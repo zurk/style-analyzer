@@ -1,4 +1,4 @@
-from typing import Any, Dict, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple
 
 from modelforge import Model
 
@@ -68,7 +68,7 @@ class Analyzer:
     model_type = None  # type: Type[AnalyzerModel]
     name = None  # type: str
 
-    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
+    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Mapping[str, Any]]):
         """
         :param model: The instance of the model loaded from the repository or freshly trained.
         :param url: The analyzed project's Git remote.
@@ -97,8 +97,8 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def train(cls, ptr: ReferencePointer, config: Dict[str, Any], data_request_stub: DataStub,
-              **data) -> AnalyzerModel:
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Mapping[str, Any]],
+              data_request_stub: DataStub, **data) -> AnalyzerModel:
         """
         Generates a new model on top of the specified source code.
 
