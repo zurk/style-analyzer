@@ -1,8 +1,8 @@
-from collections import defaultdict
+from collections import defaultdict, ChainMap
 import logging
 from pprint import pformat
 import threading
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any, Dict, Iterable, List, Mapping, Tuple
 
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
@@ -19,6 +19,14 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TopDownGreedyBudget, TrainableRules
 
 
+def warmup_generator(func):
+    def start(*args, **kwargs):
+        cr = func(*args, **kwargs)
+        next(cr)
+        return cr
+    return start
+
+
 class FormatAnalyzer(Analyzer):
     log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
@@ -26,9 +34,10 @@ class FormatAnalyzer(Analyzer):
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 
-    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]) -> None:
+    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Mapping[str, Any]]
+                 ) -> None:
         super().__init__(model, url, config)
-        self.config = self._load_config(self.config)
+        self._config_generator = self._load_config(self.config)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -44,11 +53,12 @@ class FormatAnalyzer(Analyzer):
         """
         comments = []
         changes = list(data["changes"])
-        base_files = self._files_by_language(self._filter_files((c.base for c in changes),
-                                                                self.config["line_length_limit"]))
-        head_files = self._files_by_language(self._filter_files((c.head for c in changes),
-                                                                self.config["line_length_limit"]))
+        base_files = self._files_by_language((c.base for c in changes))
+        head_files = self._files_by_language((c.head for c in changes))
         for lang, lang_head_files in head_files.items():
+            config = self._config_generator.send(lang)
+            lang_head_files = dict(self._filter_files(lang_head_files,
+                                                      config["line_length_limit"]))
             try:
                 rules = self.model[lang]
             except KeyError:
@@ -62,10 +72,7 @@ class FormatAnalyzer(Analyzer):
                     lines = None
                 else:
                     lines = [find_new_lines(prev_file, file)]
-                X, y, vnodes = FeatureExtractor(language=lang,
-                                                siblings_window=self.config["siblings_window"],
-                                                parents_depth=self.config["parents_depth"],
-                                                debug_parsing=self.config["debug_parsing"]) \
+                X, y, vnodes = FeatureExtractor(language=lang, **config["feature_extractor"]) \
                     .extract_features([file], lines)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
@@ -91,19 +98,20 @@ class FormatAnalyzer(Analyzer):
         :param data_request_stub: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
-        config = cls._load_config(config)
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
-        files_by_language = cls._files_by_language(
-            cls._filter_files(data["files"], config["line_length_limit"]))
+        files_by_language = cls._files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)
+        config_generator = cls._load_config(config)
         for language, files in files_by_language.items():
             language = language.lower()
+            config = config_generator.send(language)
+            files = dict(cls._filter_files(files, config["line_length_limit"]))
+            if len(files) == 0:
+                cls.log.info("Zero files after filtering, %s language is skipped.", language)
+                continue
             try:
-                fe = FeatureExtractor(language=language,
-                                      siblings_window=config["siblings_window"],
-                                      parents_depth=config["parents_depth"],
-                                      debug_parsing=config["debug_parsing"])
+                fe = FeatureExtractor(language=language, **config["feature_extractor"])
             except ImportError:
                 cls.log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
@@ -121,14 +129,7 @@ class FormatAnalyzer(Analyzer):
                 # workaround the check in joblib - everything still works without it
                 threading._MainThread = threading.Thread
             bscv = BayesSearchCV(
-                TrainableRules(
-                    prune_branches_algorithms=config["prune_branches_algorithms"],
-                    prune_attributes=config["prune_attributes"],
-                    top_down_greedy_budget=config["top_down_greedy_budget"],
-                    uncertain_attributes=config["uncertain_attributes"],
-                    prune_dataset_ratio=config["prune_dataset_ratio"],
-                    n_estimators=config["n_estimators"],
-                    random_state=config["random_state"]),
+                TrainableRules(config=config),
                 {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
                                                  "sklearn.tree.DecisionTreeClassifier"]),
                  "max_depth": Categorical([None, 5, 10]),
@@ -137,7 +138,7 @@ class FormatAnalyzer(Analyzer):
                  "min_samples_leaf": Integer(1, 20)},
                 n_jobs=-1,
                 n_iter=config["n_iter"],
-                random_state=config["random_state"])
+                random_state=config["trainable_rules"]["random_state"])
             if not slogging.logs_are_structured:
                 # fool the check in joblib - everything still works without it
                 # this trick allows to run parallel bscv.fit()
@@ -150,14 +151,11 @@ class FormatAnalyzer(Analyzer):
             cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
-            trainable_rules = TrainableRules(
-                prune_branches_algorithms=config["prune_branches_algorithms"],
-                prune_attributes=config["prune_attributes"],
-                random_state=config["random_state"],
-                uncertain_attributes=config["uncertain_attributes"], **bscv.best_params_
-            )
+            config.update(bscv.best_params_)
+            trainable_rules = TrainableRules(config=config)
             trainable_rules.fit(X, y)
             model[language] = trainable_rules.rules
+        config_generator.close()
         cls.log.info("trained %s", model)
         return model
 
@@ -176,30 +174,54 @@ class FormatAnalyzer(Analyzer):
         return result
 
     @classmethod
-    def _load_config(cls, config: Mapping[str, Any]):
-        final_config = {
-            "siblings_window": 5,
-            "parents_depth": 2,
-            "lower_bound_instances": 500,
-            "prune_branches_algorithms": ["reduced-error"],
-            "top_down_greedy_budget": [False, .5],
-            "prune_attributes": False,
-            "uncertain_attributes": True,
-            "prune_dataset_ratio": .2,
-            "n_estimators": 10,
-            "random_state": 42,
-            "n_iter": 5,
-            "debug_parsing": False,
-            "line_length_limit": 500
+    @warmup_generator
+    def _load_config(cls, config: Mapping[str, Mapping[str, Any]]):
+        config_ = {
+            "global": {
+                "feature_extractor": {
+                    "siblings_window": 5,
+                    "parents_depth": 2,
+                    "debug_parsing": False,
+                },
+                "trainable_rules": {
+                    "prune_branches_algorithms": ["reduced-error"],
+                    "top_down_greedy_budget": [False, .5],
+                    "prune_attributes": False,
+                    "uncertain_attributes": True,
+                    "prune_dataset_ratio": .2,
+                    "n_estimators": 10,
+                    "random_state": 42,
+                },
+                "n_iter": 5,
+                "line_length_limit": 500,
+                "lower_bound_instances": 500,
+            },
+            "javascript": {
+                # The same structure here
+            },
         }
-        final_config.update(config)
-        # the incoming value can be a list from ASDF
-        final_config["top_down_greedy_budget"] = TopDownGreedyBudget(
-            *final_config["top_down_greedy_budget"])
-        return final_config
+        for name in config_:
+            if name in config:
+                config_[name].update(config[name])
+
+        # the incoming value for "top_down_greedy_budget" can be a list from ASDF
+        for name in config_:
+            if not ("trainable_rules" in config_[name] and
+                    "top_down_greedy_budget" in config_[name]["trainable_rules"]):
+                continue
+            config_[name]["trainable_rules"]["top_down_greedy_budget"] = \
+                TopDownGreedyBudget(*config_[name]["trainable_rules"]["top_down_greedy_budget"])
+
+        try:
+            while True:
+                lang = yield
+                yield ChainMap(config_.get(lang, {}), config_["global"])
+        except GeneratorExit:
+            return
 
     @classmethod
-    def _filter_files(cls, files: Iterable[File], line_length_limit: int) -> Iterable[File]:
+    def _filter_files(cls, files: Dict[str, File], line_length_limit: int
+                      ) -> Iterable[Tuple[str, File]]:
         """
         Filter files based on their maximum line length.
 
@@ -208,10 +230,10 @@ class FormatAnalyzer(Analyzer):
         :return: Files filtered.
         """
         excluded = total = 0
-        for file in files:
+        for filename, file in files.items():
             if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
                 total += 1
-                yield file
+                yield filename, file
             else:
                 excluded += 1
         if excluded > 0:
