@@ -142,7 +142,7 @@ def generate_comment(filename: str, confidence: int, line: int, text: str) -> Co
     assert 0 <= confidence <= 100, "Confidence should be in range 0~100 but value is '%s'" % \
                                    confidence
     assert isinstance(line, int), "Line should be integer but it's type is '%s'" % type(line)
-    assert 0 <= line, "Expected value >= 0 but got '%s'" % line
+    assert 0 <= line, "Expected value > 0 but got '%s'" % line
     comment = Comment()
     comment.file = filename
     comment.confidence = confidence
