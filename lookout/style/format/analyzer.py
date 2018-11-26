@@ -44,8 +44,8 @@ class FormatAnalyzer(Analyzer):
         "report_triggered_rules": True,
         "report_parse_failures": True,
         "uast_break_check": True,
-        "report_template": os.path.join(os.path.dirname(__file__),
-                                        "analyzer_report_template.jinja2")
+        "comment_template": os.path.join(os.path.dirname(__file__), "templates",
+                                        "comment_default.jinja2")
     }
     defaults_for_train = {
         "global": {
@@ -97,8 +97,8 @@ class FormatAnalyzer(Analyzer):
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
         self.client = BblfshClient(self.config["bblfsh_address"])
-        with open(self.config["report_template"]) as f:
-            self.report_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
+        with open(self.config["comment_template"]) as f:
+            self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -271,7 +271,7 @@ class FormatAnalyzer(Analyzer):
                     continue
                 descriptions.append(
                     (line_winner, get_error_description(line_vnode_y, line_y_predi, fe)))
-            text = self.report_template.render(
+            text = self.comment_template.render(
                 config=self.config,
                 lang=lang,
                 line_number=line_number,
@@ -305,6 +305,18 @@ class FormatAnalyzer(Analyzer):
 
     @staticmethod
     def _group_line_nodes(y, y_pred, vnodes_y, new_vnodes, rule_winners):
+        """
+        Group virtual nodes by line number.
+
+
+
+        :param y:
+        :param y_pred:
+        :param vnodes_y:
+        :param new_vnodes:
+        :param rule_winners:
+        :return:
+        """
         line_ys, line_ys_pred, line_vnodes_y, line_winners = [], [], [], []
         generate_comment = False
         vnodes_index = 0
