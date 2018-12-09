@@ -316,8 +316,9 @@ class FormatAnalyzer(Analyzer):
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
-            new_code_line = code_generator.generate(
-                new_line_vnodes, "local").lstrip("\n").splitlines()[0]
+            # new_code_line = code_generator.generate(
+            #     new_line_vnodes, "local").lstrip("\n").splitlines()[0]
+            new_code_line = 0
             confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners,
                                                       new_rules)
             vnodes_changed = [vnode for vnode in new_line_vnodes if
