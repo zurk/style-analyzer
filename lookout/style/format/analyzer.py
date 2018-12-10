@@ -78,7 +78,7 @@ class FormatAnalyzer(Analyzer):
                 "debug_parsing": False,
                 "select_features_number": 500,
                 "return_sibling_indices": False,
-                "cutoff_label_support": 80,
+                "cutoff_label_support": 0,
             },
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
