@@ -1,11 +1,11 @@
 """Facilities to report the quality of a given model on a given dataset."""
-from collections import Counter, defaultdict, namedtuple, OrderedDict
+from collections import Counter, defaultdict, OrderedDict
 import glob
 from itertools import chain
 import json
 import logging
 import os
-from typing import Any, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Union
 
 from bblfsh import BblfshClient
 import jinja2
@@ -54,44 +54,38 @@ def convert_to_sklearn_format(vnodes: Iterable[VirtualNode]
     return y, y_pred, vnodes_y, target_names
 
 
+def _load_jinja2_template(report_temlate_filename: str) -> jinja2.Template:
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
+    env.globals.update(range=range)
+    return jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                   followlinks=True).load(env, report_temlate_filename)
+
+
 def generate_report(vnodes, n_files):
     """Generate report: classification report, confusion matrix, files with most errors."""
     y, y_pred, vnodes_y, target_names = convert_to_sklearn_format(vnodes)
     # classification report
     c_report = classification_report(y, y_pred, output_dict=True, target_names=target_names,
                                      labels=list(range(len(target_names))))
-
     avr_keys = ["macro avg", "micro avg", "weighted avg"]
     c_sorted = OrderedDict((key, c_report[key])
                            for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
                            if key not in avr_keys)
     for key in avr_keys:
         c_sorted[key] = c_report[key]
-
     # confusion matrix
     mat = confusion_matrix(y, y_pred)
-
     # sort files by mispredictions
     file_mispred = []
     for gt, pred, vn in zip(y, y_pred, vnodes_y):
         if gt != pred:
             file_mispred.append(vn.path)
     file_stat = Counter(file_mispred)
-
     to_show = file_stat.most_common()
     if n_files > 0:
         to_show = to_show[:n_files]
 
-    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
-                                     followlinks=True)
-    env = jinja2.Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-    )
-    env.globals.update(range=range)
-
-    template = loader.load(env, "templates/quality_report.md.jinja2")
+    template = _load_jinja2_template("templates/quality_report.md.jinja2")
     res = template.render(cl_report=c_sorted, conf_mat=mat, target_names=target_names,
                           files=to_show)
     return res
@@ -111,11 +105,7 @@ def generate_model_report(model: FormatModel, languages: Optional[Union[str, Ite
     rules_report = []
     languages = languages if languages is not None else model.languages
     languages = languages if isinstance(languages, Iterable) else [languages]
-    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
-    env.globals.update(range=range)
-    template = jinja2.FileSystemLoader(
-        ("/", os.path.dirname(__file__), os.getcwd()), followlinks=True).load(
-        env, "templates/model_report.md.jinja2")
+    template = _load_jinja2_template("templates/model_report.md.jinja2")
     for language in languages:
         rules = model[language]
         min_support, max_support = float("inf"), -1
@@ -192,6 +182,7 @@ class ReportAnalyzer(FormatAnalyzer):
     * generate_model_report (optional - by default it will return empty string)
     """
 
+    Changes = NamedTuple("Changes", (("base", File), ("head", File)))
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
@@ -225,10 +216,9 @@ class ReportAnalyzer(FormatAnalyzer):
         comments = []
         handled_files = set()
         fixes = []
-        Changes = namedtuple("Changes", ("base", "head"))
         files = request_files(data_service.get_data(), ptr_from, contents=True, uast=True)
         for fix in self.generate_fixes(data_service,
-                                       [Changes(File(), f) for f in list(files)]):
+                                       [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
             filepath = fix.head_file.path
             if fix.error or filepath in handled_files:
                 continue

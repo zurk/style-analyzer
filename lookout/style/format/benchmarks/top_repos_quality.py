@@ -1,12 +1,14 @@
 """Measure quality on several top repositories."""
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
+import functools
 import importlib
 import io
 import json
+import logging
+import logging.handlers
 import os
 import subprocess
 import tempfile
-import traceback
 from typing import Iterable, Sequence, Type, Union
 
 from lookout.core import slogging
@@ -79,7 +81,7 @@ class AnalyzerContextManager:
 
         class Args:
             pass
-        self.args = Args()
+        self.args = Namespace()
         self.args.db = "sqlite:///%s" % self.db
         self.args.fs = self.fs
         self.args.cache_size = "1G"
@@ -132,18 +134,17 @@ def ensure_repo(repository: str, storage_dir: str) -> str:
     if os.path.exists(repository):
         return repository
     # clone repository
+    # TODO: use dulwich in the future
     git_dir = os.path.join(storage_dir, get_repo_name(repository))  # location for code
     cmd = "git clone --single-branch --branch master %s %s" % (repository, git_dir)
-    process = subprocess.Popen(cmd.split())
-    output, error = process.communicate()
-    assert error is None, "Something went wrong with repository %s " % repository
+    subprocess.run(cmd.split()).check_returncode()
     return git_dir
 
 
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
                     review_config: dict) -> str:
     """
-    Generate quality and model reports for repository.
+    Generate quality and model reports for a repository.
 
     :param repository: URL of repository.
     :param from_commit: Hash of commit.
@@ -155,24 +156,26 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     quality_report, model_report = None, None
 
     def capture_quality_report(func):
-        def decorated(*args, **kwargs):
+        @functools.wraps(func)
+        def wrapped_capture_quality_report(*args, **kwargs):
             nonlocal quality_report
             if quality_report is not None:
                 raise RuntimeError("%s should be called only one time." % func.__name__)
             quality_report = func(*args, **kwargs)
             return quality_report
-        decorated._original = func
-        return decorated
+        wrapped_capture_quality_report._original = func
+        return wrapped_capture_quality_report
 
     def capture_model_report(func):
-        def decorated(*args, **kwargs):
+        @functools.wraps(func)
+        def wrapped_capture_model_report(*args, **kwargs):
             nonlocal model_report
             if model_report is not None:
                 raise RuntimeError("%s should be called only one time." % func.__name__)
             model_report = func(*args, **kwargs)
             return model_report
-        decorated._original = func
-        return decorated
+        wrapped_capture_model_report._original = func
+        return wrapped_capture_model_report
     try:
         QualityReportAnalyzer.generate_model_report = \
             capture_model_report(QualityReportAnalyzer.generate_model_report)
@@ -196,6 +199,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
 def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 3) -> float:
     """Calculate average value in `col` weighted by column `weight_col`."""
     numerator, denominator = 0, 0
+    # TODO: switch to numpy arrays
     for row in arr:
         numerator += row[col] * row[weight_col]
         denominator += row[weight_col]
@@ -207,6 +211,7 @@ def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 3) ->
 def calc_avg(arr: Sequence[Sequence], col: int) -> float:
     """Calculate average value in `col`."""
     numerator, denominator = 0, 0
+    # TODO: switch to numpy arrays
     for row in arr:
         numerator += row[col]
         denominator += 1
@@ -217,7 +222,9 @@ def calc_avg(arr: Sequence[Sequence], col: int) -> float:
 
 def get_precision_recall_f1_support(report: str) -> (float, float, float, int):
     """Extract avg / total precision, recall, f1 score, support from report."""
-    for line in report.split("\n"):
+    # TODO: append a JSON codeblock to each report and parse it with json.loads
+    # See https://github.com/src-d/style-analyzer/pull/326/files#r236667952
+    for line in report.splitlines():
         if "weighted avg" in line:
             _, prec, recall, f1, support = line.split("` | `")
             prec, recall, f1, support = [float(f.replace("`", "").replace("|", "")) for f in
@@ -228,7 +235,7 @@ def get_precision_recall_f1_support(report: str) -> (float, float, float, int):
 def get_model_summary(report: str) -> (int, float):
     """Extract model summary - number of rules and avg. len."""
     pattern = " rules, avg.len. "
-    for line in report.split("\n"):
+    for line in report.splitlines():
         if pattern in line:
             line = line.replace("`", "")
             res = list(map(float, line.split(pattern)))
@@ -240,19 +247,20 @@ def get_model_summary(report: str) -> (int, float):
 
 def main(args):
     """Entry point for quality report generation."""
+    os.makedirs(args.output, exist_ok=True)
+    assert os.path.isdir(args.output), "Output should be a directory"
     slogging.setup(args.log_level, False)
+    log = logging.getLogger("QualityAnalyzer")
+    handler = logging.handlers.RotatingFileHandler(os.path.join(args.output, "errors.txt"))
+    handler.setLevel(logging.ERROR)
+    log.addHandler(handler)
     if not server.exefile.exists():
         server.fetch()  # download executable
     # prepare output directory
-    dir_to_save = args.output
-    os.makedirs(dir_to_save, exist_ok=True)
-    assert os.path.isdir(dir_to_save), "Output should be a directory"
     reports = []
-    errors_loc = os.path.join(dir_to_save, "errors.txt")
+
     port = server.find_port()
-    review_config = {QualityReportAnalyzer.name: {
-        "aggregate": True,
-        }}
+    review_config = {QualityReportAnalyzer.name: {"aggregate": True}}
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         database = args.database if args.database else os.path.join(tmpdirname, "db.sqlite3")
@@ -262,7 +270,7 @@ def main(args):
                                     analyzer="lookout.style.format.quality_report", init=False):
             for repo in REPOSITORIES:
                 repo, to_commit, from_commit = repo.split()
-                report_loc = os.path.join(dir_to_save, get_repo_name(repo))
+                report_loc = os.path.join(args.output, get_repo_name(repo))
                 quality_rep_loc = report_loc + ".quality_report.md"
                 model_rep_loc = report_loc + ".model_report.md"
                 # generate or read report
@@ -286,12 +294,8 @@ def main(args):
                             model_report = f.read()
                     report = "\n".join((quality_report, model_report))
                     reports.append((repo, report))
-                except Exception as e:
-                    with open(errors_loc, "a") as f:
-                        f.write("-" * 20 + "\n")
-                        f.write(repo + "\n")
-                        traceback.print_exc()
-                        traceback.print_exc(file=f)
+                except Exception:
+                    log.exception("-" * 20 + "\nFailed to process %s repo", repo)
                     continue
 
         # precision, recall, f1, support, n_rules, avg_len stats
@@ -306,16 +310,14 @@ def main(args):
                 table.append((get_repo_name(repo), precision, recall, f1, support, n_rules,
                               avg_len))
             # weighted average
-            table.append(("Weighted average", "%.2f" % calc_weighted_avg(agg, 0),
-                          "%.2f" % calc_weighted_avg(agg, 1), "%.2f" % calc_weighted_avg(agg, 2)))
+            table.append(("Weighted average", *("%.2f" % calc_weighted_avg(agg, i)
+                                                for i in range(3))))
             # average
-            table.append(("Average", "%.2f" % calc_avg(agg, 0), "%.2f" % calc_avg(agg, 1),
-                          "%.2f" % calc_avg(agg, 2), "%.2f" % calc_avg(agg, 3),
-                          "%.2f" % calc_avg(agg, 4), "%.2f" % calc_avg(agg, 5)))
+            table.append(("Average", *("%.2f" % calc_avg(agg, i) for i in range(6))))
             print(tabulate(table, tablefmt="pipe", headers="firstrow"), file=output)
             summary = output.getvalue()
         print(summary)
-        summary_loc = os.path.join(dir_to_save, "summary.md")
+        summary_loc = os.path.join(args.output, "summary.md")
         with open(summary_loc, "w", encoding="utf-8") as f:
             f.write(summary)
 
