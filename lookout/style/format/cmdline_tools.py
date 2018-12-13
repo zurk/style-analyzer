@@ -150,6 +150,7 @@ def create_parser() -> ArgumentParser:
     eval_gen_styles_parser.add_argument(
         "reportdir", type=str,
         help="Path for report performance output directory.")
+    add_bblfsh_arg(eval_gen_styles_parser)
     eval_gen_styles_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "
