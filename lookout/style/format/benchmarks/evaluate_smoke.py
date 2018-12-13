@@ -384,6 +384,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, bblfsh: str, database: 
                     server.run("review", fr=row["from"], to=row["to"], port=port,
                                git_dir=str(repopath), log_level="warning",
                                config_json=json.dumps(config_json))
+                    break
             log.info("Quality report saved to %s", reportdir)
 
     report = pandas.read_csv(report_filename)

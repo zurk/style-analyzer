@@ -51,7 +51,7 @@ report-smoke: $(SMOKE_REPORT_DIR)
 		$(SMOKE_REPORT_DIR)/report 2>&1 | tee $(SMOKE_REPORT_DIR)/report_logs.txt
 report-noisy: $(NOISY_REPORT_DIR)
 	python3 -m lookout.style.format quality-report-noisy -o $(NOISY_REPORT_DIR) \
-		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
+		--repos-urls https://github.com/warenlg/axios 2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
 		2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
