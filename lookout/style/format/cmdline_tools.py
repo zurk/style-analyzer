@@ -42,7 +42,7 @@ def add_bblfsh_arg(my_parser: ArgumentParser):
     :param my_parser: Parser to add the argument to.
     """
     my_parser.add_argument(
-        "--bblfsh", default="0.0.0.0:9432",
+        "--bblfsh", default="localhost:9432",
         help="Babelfish server's address.")
 
 
