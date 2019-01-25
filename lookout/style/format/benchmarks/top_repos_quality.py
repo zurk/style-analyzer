@@ -27,28 +27,28 @@ from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 # TODO(zurk): Move REPOSITORIES to ./benchmarks/data/default_repository_list.csv
 # format: "repository to-commit from-commit"
 REPOSITORIES = [
-    "https://github.com/30-seconds/30-seconds-of-code 3a122c9cfcbdc091227879a06a32bc67ccd0d35d c8c60895e80b8bc90583502accdaa339b794609c",  # noqa: E501
-    "https://github.com/axios/axios 21ae22dbd3ae3d3a55d9efd4eead3dd7fb6d8e6e 138108ee56bd689305ae505a66b48d5e9c8aa494",  # noqa: E501
-    "https://github.com/GoogleChromeLabs/carlo b8ce2bca042c757b13fc82a3e059980342ddd9a8 26262aad740b7255f17950251ae344b4823572a4",  # noqa: E501
-    "https://github.com/nodejs/citgm 0c4c7ccdd1cad8ce9506e34ca523787ba18cafe2 d21e2a87aaa9e9f50c6175eddc54054a32c64a24",  # noqa: E501
-    "https://github.com/facebook/create-react-app 32106d216e4c31fda30ec475f9f03186d116c893 ffc63d55976f9cbcce7f33dc7c45b3c2190a5924",  # noqa: E501
-    "https://github.com/expressjs/express b4eb1f59d39d801d7365c86b04500f16faeb0b1c 56e90e3c7267782febe35754806ce3f63b527485",  # noqa: E501
-    "https://github.com/freeCodeCamp/freeCodeCamp cf65516cce60645a417e44c4fcea7418ca920572 c353c4c659c3dcb19524ba893f170805c931a44a",  # noqa: E501
-    "https://github.com/jquery/jquery dae5f3ce3d2df27873d01f0d9682f6a91ad66b87 d9a099a58e1bb1f158ea66ec55534770be442907",  # noqa: E501
-    "https://github.com/facebook/react 1034e26fe5e42ba07492a736da7bdf5bf2108bc6 8ced545e3df95afab6fa35bc29f9320bafbcef26",  # noqa: E501
-    "https://github.com/facebook/react-native 1850906e5e557beb2234a1708cfc5fe8e7b4f0bf 764dd511d21aa4dac815c59a7d72497267fde08a",  # noqa: E501
-    "https://github.com/reduxjs/redux 902484ed735d38aec06683c847810a7218d8dba2 b307091af4d7e846d9e5f080fb81caf4a8b4aab1",  # noqa: E501
-    "https://github.com/storybooks/storybook b28217f887af533a17cb1498887d6b4bd41bd643 4c46f273719427788d568c037f285907aabd17f9",  # noqa: E501
+    # "https://github.com/30-seconds/30-seconds-of-code 3a122c9cfcbdc091227879a06a32bc67ccd0d35d c8c60895e80b8bc90583502accdaa339b794609c",  # noqa: E501
+    # "https://github.com/axios/axios 21ae22dbd3ae3d3a55d9efd4eead3dd7fb6d8e6e 138108ee56bd689305ae505a66b48d5e9c8aa494",  # noqa: E501
+    # "https://github.com/GoogleChromeLabs/carlo b8ce2bca042c757b13fc82a3e059980342ddd9a8 26262aad740b7255f17950251ae344b4823572a4",  # noqa: E501
+    # "https://github.com/nodejs/citgm 0c4c7ccdd1cad8ce9506e34ca523787ba18cafe2 d21e2a87aaa9e9f50c6175eddc54054a32c64a24",  # noqa: E501
+    # "https://github.com/facebook/create-react-app 32106d216e4c31fda30ec475f9f03186d116c893 ffc63d55976f9cbcce7f33dc7c45b3c2190a5924",  # noqa: E501
+    # "https://github.com/expressjs/express b4eb1f59d39d801d7365c86b04500f16faeb0b1c 56e90e3c7267782febe35754806ce3f63b527485",  # noqa: E501
+    # "https://github.com/freeCodeCamp/freeCodeCamp cf65516cce60645a417e44c4fcea7418ca920572 c353c4c659c3dcb19524ba893f170805c931a44a",  # noqa: E501
+    # "https://github.com/jquery/jquery dae5f3ce3d2df27873d01f0d9682f6a91ad66b87 d9a099a58e1bb1f158ea66ec55534770be442907",  # noqa: E501
+    # "https://github.com/facebook/react 1034e26fe5e42ba07492a736da7bdf5bf2108bc6 8ced545e3df95afab6fa35bc29f9320bafbcef26",  # noqa: E501
+    # "https://github.com/facebook/react-native 1850906e5e557beb2234a1708cfc5fe8e7b4f0bf 764dd511d21aa4dac815c59a7d72497267fde08a",  # noqa: E501
+    # "https://github.com/reduxjs/redux 902484ed735d38aec06683c847810a7218d8dba2 b307091af4d7e846d9e5f080fb81caf4a8b4aab1",  # noqa: E501
+    # "https://github.com/storybooks/storybook b28217f887af533a17cb1498887d6b4bd41bd643 4c46f273719427788d568c037f285907aabd17f9",  # noqa: E501
     "https://github.com/laravel/telescope 534030114f47696fe3f3b08ea7ca49467428f2af 6f0a10ec586cfa1a22218b6778bf9c1572b97912",  # noqa: E501
-    "https://github.com/vuejs/vue-cli 2024f4e52097bed96b527d2e519dccba334f434b 85e4f9839ba88d1283b10bb3112582792b8dac6e",  # noqa: E501
-    "https://github.com/meteor/meteor c3309b123a7220ac24cbe73661184ee946bca01f 62fa9927ce34cff064cc3991439553e7c52b5258",  # noqa: E501
-    "https://github.com/webpack/webpack babe736cfa1ef7e8014ed32ba4a4ec38049dce14 3e74cb428af04eedac60ae13d2420d2b5bd3bde1",  # noqa: E501
+    # "https://github.com/vuejs/vue-cli 2024f4e52097bed96b527d2e519dccba334f434b 85e4f9839ba88d1283b10bb3112582792b8dac6e",  # noqa: E501
+    # "https://github.com/meteor/meteor c3309b123a7220ac24cbe73661184ee946bca01f 62fa9927ce34cff064cc3991439553e7c52b5258",  # noqa: E501
+    # "https://github.com/webpack/webpack babe736cfa1ef7e8014ed32ba4a4ec38049dce14 3e74cb428af04eedac60ae13d2420d2b5bd3bde1",  # noqa: E501
     # TODO: add after bblfsh python client v3 is released and we use it
     # "https://github.com/vuejs/vue b7105ae8c9093e36ec89a470caa3b78bda3ef467 db1d0474997e9e60b8b0d39a3b7c2af55cfd0d4a",  # noqa: E501
     # "https://github.com/vuejs/vuex 2e62705d4bce4ebcb8eca23df8c7b849125fc565 1ac16a95c574f6b1386016fb6d4f00cfd2ee1d60",  # noqa: E501
-    "https://github.com/segmentio/evergreen ba22d511dad83c072842e47801ef42697d142f7c 1030eca5da38dce4e5047c23a3ea7fc0c246b8ce",  # noqa: E501
-    "https://github.com/atom/atom 108b23210759a8c5b2f51ac99659be5dc31a7371 a3c320dd707b915da2192427bcceea166edbd6d4",  # noqa: E501
-    "https://github.com/nodejs/node 6eda924c189e44a36fc97a7cfae41b69483d5bfb 315b1c656cee39c989015cc2b17fe8c864dbc3dd",  # noqa: E501
+    # "https://github.com/segmentio/evergreen ba22d511dad83c072842e47801ef42697d142f7c 1030eca5da38dce4e5047c23a3ea7fc0c246b8ce",  # noqa: E501
+    # "https://github.com/atom/atom 108b23210759a8c5b2f51ac99659be5dc31a7371 a3c320dd707b915da2192427bcceea166edbd6d4",  # noqa: E501
+    # "https://github.com/nodejs/node 6eda924c189e44a36fc97a7cfae41b69483d5bfb 315b1c656cee39c989015cc2b17fe8c864dbc3dd",  # noqa: E501
 ]
 
 FLOAT_PRECISION = ".3f"
