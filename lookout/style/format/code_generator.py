@@ -94,25 +94,14 @@ class CodeGenerator:
         if line_vnodes[0].y is None:
             # we add " " because we want to count probably empty last line
             lines_no = len((line_vnodes[0].value + " ").splitlines())
-            return "".join(generated.splitlines()[lines_no:])
+            return "".join(generated.splitlines()[lines_no - 1:])
 
         if first_y is not None and self.NEWLINE_INDEX not in first_y:
             return generated
 
         # First line is always removed because it is an end line from the previous line.
         generated_lines = generated.splitlines(keepends=True)[1:]
-        if not generated_lines:
-            # Usually it means that you replace several newlines with only one.
-            return ""
-        for i, line in enumerate(generated_lines):  # noqa B007
-            if line.splitlines()[0]:
-                # Line is not empty
-                break
-        lines_num = 0
-        if line_vnodes and hasattr(line_vnodes[0], "y_old") and self.NEWLINE_INDEX in first_y:
-            lines_num = line_vnodes[0].y.count(self.NEWLINE_INDEX) - \
-                        line_vnodes[0].y_old.count(self.NEWLINE_INDEX)
-        return "".join(generated_lines[i - max(0, lines_num):])
+        return "".join(generated_lines)
 
     def apply_predicted_y(self, vnodes: Sequence[VirtualNode],
                           vnodes_y: Sequence[VirtualNode],
@@ -309,7 +298,8 @@ class CodeGenerator:
                 value += CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[y_i]]]
             elif y_i in CodeGenerator.INDENTATIONS_INC:
                 if value[-1] != CLS_TO_STR[CLASSES[y_i]]:
-                    raise InapplicableIndentation("%s has inconsistent value and y" % repr(vnode))
+                    raise InapplicableIndentation("%s has inconsistent value and y. y_old:%s" % (
+                        repr(vnode), getattr(vnode, "y_old", "<NA>")))
                 value = value[:-1]
             elif y_i == CodeGenerator.NEWLINE_INDEX:
                 break

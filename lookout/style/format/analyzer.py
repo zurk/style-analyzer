@@ -21,7 +21,7 @@ from lookout.core.metrics import submit_event
 import numpy
 
 from lookout.style import __version__
-from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
+from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE, CLS_NOOP
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description, hash_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -30,7 +30,7 @@ from lookout.style.format.optimizer import Optimizer
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
-from lookout.style.format.virtual_node import VirtualNode
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 # silence skopt's rant
 warnings.filterwarnings("ignore", message="The objective has been evaluated at this point before.")
@@ -496,9 +496,66 @@ class FormatAnalyzer(Analyzer):
         return int(round(confidence * 100 / confidence_count))
 
     @staticmethod
+    def _split_vnodes_by_lines(vnodes: List[VirtualNode]) -> Iterator:
+        """
+        Split VirtualNode to several one-line VirtualNode if it is placed on several lines.
+        """
+        def _split_y(y: Sequence[int]):
+            newlines_n = 0
+            for i, yi in enumerate(y):  # noqa: B007
+                if yi == NEWLINE:
+                    newlines_n += 1
+                if newlines_n == 2:
+                    break
+            else:
+                return y, None
+            y1, y2 = y[:i], y[i:]
+            return y1 if y1 else (CLS_NOOP,), y2 if y2 else (CLS_NOOP,)
+
+        NEWLINE = CLASS_INDEX[CLS_NEWLINE]
+        vnodes = vnodes[::-1]
+        while vnodes:
+            vnode = vnodes.pop()
+            value_lines = vnode.value.splitlines()
+            if len(value_lines) <= 1:
+                yield vnode
+                continue
+
+            if len(value_lines) > 0 and value_lines[0] == "":
+                next_line = value_lines[1] if len(value_lines) > 1 else ""
+                value1 = vnode.value.splitlines(keepends=True)[0] + next_line
+                middle = Position(offset=vnode.start.offset+len(value1), line=vnode.start.line+1,
+                                  col=1+len(next_line))
+            else:
+                value1 = value_lines[0]
+                middle = Position(offset=vnode.start.offset + len(value1), line=vnode.start.line,
+                                  col=vnode.start.col + len(value1))
+
+            value2 = vnode.value[len(value1):]
+            vnode1 = VirtualNode(value=value1, start=vnode.start, end=middle, node=vnode.node)
+            vnode2 = VirtualNode(value=value2, start=middle, end=vnode.end, node=vnode.node)
+            if vnode2.value:
+                if vnode.y is not None:
+                    y1, y2 = _split_y(vnode.y)
+                    vnode1.y = y1
+                    vnode2.y = y2
+                if hasattr(vnode, "y_old"):
+                    if vnode2.value:
+                        y1_old, y2_old = _split_y(vnode.y_old)
+                        vnode1.y_old = y1_old
+                        vnode2.y_old = y2_old
+                vnodes.append(vnode2)
+            else:
+                if vnode.y is not None:
+                    vnode1.y = vnode.y
+                if hasattr(vnode, "y_old"):
+                    vnode1.y_old = vnode.y_old
+            yield vnode1
+
+    @staticmethod
     def _group_line_nodes(
         y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
-        new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
+        new_vnodes: List[VirtualNode], rule_winners: Sequence[int],
         ) -> Tuple[int, Tuple[Sequence[int], Sequence[int], Sequence[VirtualNode],
                               Sequence[VirtualNode], Sequence[int]]]:
         """
@@ -536,7 +593,7 @@ class FormatAnalyzer(Analyzer):
 
         for line_no, (line_y, line_y_pred, line_vnodes_y, line_rule_winners) in result:
             line_vnodes = []
-            for vnode in new_vnodes:
+            for vnode in FormatAnalyzer._split_vnodes_by_lines(new_vnodes):
                 if vnode.end.line > line_no:
                     break
                 elif vnode.end.line == line_no:
