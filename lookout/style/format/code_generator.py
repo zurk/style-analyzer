@@ -309,7 +309,8 @@ class CodeGenerator:
                 value += CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[y_i]]]
             elif y_i in CodeGenerator.INDENTATIONS_INC:
                 if value[-1] != CLS_TO_STR[CLASSES[y_i]]:
-                    raise InapplicableIndentation("%s has inconsistent value and y" % repr(vnode))
+                    raise InapplicableIndentation("%s has inconsistent value and y. y_old:%s" % (
+                        repr(vnode), getattr(vnode, "y_old", "<NA>")))
                 value = value[:-1]
             elif y_i == CodeGenerator.NEWLINE_INDEX:
                 break
