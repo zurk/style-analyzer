@@ -65,14 +65,17 @@ report-noisy: $(NOISY_REPORT_DIR)
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
 		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+report-quality-no-vnode-check: $(QUALITY_REPORT_DIR)
+	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
+		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
 report-compare:
 	python3 -m lookout.style.format compare-quality \
-		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-train_report.md \
+		--base $(current_dir)/lookout/style/format/benchmarks/reports/0.1.0/quality/summary-train_report.md \
 		--new $(QUALITY_REPORT_DIR)/summary-train_report.md -o -
 	python3 -m lookout.style.format compare-quality \
-		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-test_report.md \
+		--base $(current_dir)/lookout/style/format/benchmarks/reports/0.1.0/quality/summary-test_report.md \
 		--new $(QUALITY_REPORT_DIR)/summary-test_report.md -o -
-
+report-quality-no-vnode-check-compare: report-quality-no-vnode-check report-compare
 report-release: report-smoke report-noisy report-quality
 
 expected-vnodes-number:
