@@ -85,10 +85,11 @@ class CodeGenerator:
                             exists. The final line break of the line should not be included.
         :return: Code line.
         """
-        if not line_vnodes:
+        generated = self.generate(line_vnodes)
+        if generated == "":
             return ""
 
-        generated = self.generate(line_vnodes).splitlines(keepends=True)
+        generated = generated.splitlines(keepends=True)
         lines_old = sum(getattr(vnode, "y_old", vnode.y).count(NEWLINE_INDEX)
                         for vnode in line_vnodes if vnode.y is not None)
         lines_new = sum(vnode.y.count(NEWLINE_INDEX)
