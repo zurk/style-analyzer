@@ -35,8 +35,11 @@ def _quality_report_table_to_df(report_table_file: TextIO) -> pandas.DataFrame:
     table = []
     separator_set = frozenset(":|-")
     for line in report_table_file:
-        if set(line.strip()) <= separator_set:
+        ls = set(line.strip())
+        if ls <= separator_set:
             continue
+        if "|" not in ls:
+            break
         cells = line.strip().split("|")
         if not cells[0]:
             cells = cells[1:]
@@ -92,3 +95,22 @@ def compare_quality_reports_entry(base: str, new: str, output: str) -> None:
         else:
             with open(output, "w") as output_file:
                 compare_quality_reports(base_file, new_file, output_file)
+
+
+if __name__ == '__main__':
+    reports = {
+        "v010_react-native": "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/reports/0.1.0/quality/react-native.test_report.md",
+        "new_react-native": "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/reports/quality-eb2ec03d702cfbacfe2bfd1601cede2320ea4884/react-native.test_report.md",
+        "v010_storybook": "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/reports/0.1.0/quality/storybook.test_report.md",
+        "new_storybook": "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/reports/quality-eb2ec03d702cfbacfe2bfd1601cede2320ea4884/storybook.test_report.md",
+    }
+
+    for key in reports:
+        with open(reports[key]) as f:
+            content = f.read()
+
+        matrix = content.split("###")
+        matrix = matrix[2].splitlines()[2:]
+        matrix = _quality_report_table_to_df(matrix)
+        print(matrix)
+        break
