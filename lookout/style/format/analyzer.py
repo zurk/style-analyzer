@@ -65,7 +65,7 @@ class FormatAnalyzer(Analyzer):
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
         "confidence_threshold": 0.92,
-        "support_threshold": 80,
+        "support_threshold": 0,
         "report_code_lines": False,
         "report_triggered_rules": False,
         "report_parse_failures": False,
@@ -88,7 +88,7 @@ class FormatAnalyzer(Analyzer):
                 "debug_parsing": False,
                 "select_features_number": 500,
                 "return_sibling_indices": False,
-                "cutoff_label_support": 80,
+                "cutoff_label_support": 0,
             },
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],

@@ -42,7 +42,7 @@ bblfsh-start:
 		javascript docker://bblfsh/javascript-driver\:v1.2.0
 
 REPORTS_DIR ?= $(current_dir)/lookout/style/format/benchmarks/reports
-REPORT_VERSION ?= untagged
+REPORT_VERSION ?= untagged3
 REPORT_DIR ?= $(REPORTS_DIR)/$(REPORT_VERSION)
 SMOKE_REPORT_DIR ?= $(REPORT_DIR)/js_smoke
 NOISY_REPORT_DIR ?= $(REPORT_DIR)/noisy

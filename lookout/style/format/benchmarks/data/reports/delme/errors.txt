@@ -1,0 +1,40 @@
+--------------------
+Failed to process https://github.com/meteor/meteor repo
+Traceback (most recent call last):
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 385, in main
+    vnodes_expected_number=vnodes_expected_number)
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 228, in measure_quality
+    (restarts, repository))
+RuntimeError: Run out of 3 attempts. Failed to train proper model for https://github.com/meteor/meteor.
+--------------------
+Failed to process https://github.com/meteor/meteor repo
+Traceback (most recent call last):
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 385, in main
+    vnodes_expected_number=vnodes_expected_number)
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 228, in measure_quality
+    (restarts, repository))
+RuntimeError: Run out of 3 attempts. Failed to train proper model for https://github.com/meteor/meteor.
+--------------------
+Failed to process https://github.com/meteor/meteor repo
+Traceback (most recent call last):
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 385, in main
+    vnodes_expected_number=vnodes_expected_number)
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 228, in measure_quality
+    (restarts, repository))
+RuntimeError: Run out of 3 attempts. Failed to train proper model for https://github.com/meteor/meteor.
+--------------------
+Failed to process /home/k/sourced/workdir/style-analyzer-report-repos/meteor repo
+Traceback (most recent call last):
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 385, in main
+    vnodes_expected_number=vnodes_expected_number)
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 228, in measure_quality
+    (restarts, repository))
+RuntimeError: Run out of 3 attempts. Failed to train proper model for /home/k/sourced/workdir/style-analyzer-report-repos/meteor.
+--------------------
+Failed to process /home/k/sourced/workdir/style-analyzer-report-repos/meteor repo
+Traceback (most recent call last):
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 385, in main
+    vnodes_expected_number=vnodes_expected_number)
+  File "/home/k/sourced/workdir/style-analyzer/lookout/style/format/benchmarks/top_repos_quality.py", line 228, in measure_quality
+    (restarts, repository))
+RuntimeError: Run out of 3 attempts. Failed to train proper model for /home/k/sourced/workdir/style-analyzer-report-repos/meteor.

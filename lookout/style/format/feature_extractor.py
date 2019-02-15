@@ -5,6 +5,7 @@ from itertools import chain, islice, zip_longest
 import logging
 from operator import itemgetter
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union)
+import pprint
 
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
@@ -16,7 +17,7 @@ from sklearn.feature_selection import SelectKBest, VarianceThreshold
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
-    INDEX_CLS_TO_STR, NEWLINE_INDEX, QUOTES_INDEX)
+    INDEX_CLS_TO_STR, NEWLINE_INDEX, QUOTES_INDEX, CLS_TAB_TRAILING, CLS_SPACE_TRAILING)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -319,11 +320,14 @@ class FeatureExtractor:
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            file_vnodes_iterator = self._classify_vnodes(file_vnodes, file.path)
-            file_vnodes_iterator = self._merge_classes_to_composite_labels(
-                file_vnodes_iterator, file.path, index_labels=index_labels)
+            file_vnodes_iterator = list(self._classify_vnodes(file_vnodes, file.path))
+            file_vnodes_iterator = list(self._merge_classes_to_composite_labels(
+                file_vnodes_iterator, file.path, index_labels=index_labels))
             file_vnodes = self._add_noops(list(file_vnodes_iterator), file.path,
                                           index_labels=index_labels)
+            for vn in file_vnodes:
+                if (9, 2) == vn.y:
+                    self._log.warning("!!!!!!! %s,", repr(vn))
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
             node_parents.update(file_parents)
@@ -337,6 +341,9 @@ class FeatureExtractor:
             ) -> Optional[Tuple[csr_matrix, numpy.ndarray, List[VirtualNode], List[VirtualNode],
                           List[List[int]]]]:
         vnodes_parsed_number = sum(len(vn) for vn, _, _ in parsed_files)
+        initial_trailing_number = sum(1 for vns, _, _ in parsed_files for vn in vns if vn.y is not None and (
+                    CLASS_INDEX[CLS_SPACE_TRAILING] in vn.y or CLASS_INDEX[CLS_SPACE_TRAILING] in vn.y))
+
         index_labels = not self.labels_to_class_sequences
         # filter composite labels by support
         if index_labels:
@@ -354,6 +361,7 @@ class FeatureExtractor:
         y = numpy.concatenate(labels)
         self._log.debug("%d out of %d are labeled and saved after filtering", y.shape[0],
                         vnodes_parsed_number)
+        self._log.warning("%d trailing vnodes", initial_trailing_number)
         if index_labels:
             self._compute_feature_info()
         features = [feature for group_features in self._features.values()
@@ -493,7 +501,8 @@ class FeatureExtractor:
             if traling_chars:
                 # node contains trailing whitespaces from the previous line
                 assert set(traling_chars) <= {" ", "\t"}
-                y = [CLASS_INDEX[CLS_SPACE if yi == " " else CLS_TAB] for yi in traling_chars]
+                y = [CLASS_INDEX[CLS_SPACE_TRAILING if yi == " " else CLS_TAB_TRAILING]
+                     for yi in traling_chars]
                 yield VirtualNode(
                     traling_chars,
                     node.start,
@@ -784,7 +793,7 @@ class FeatureExtractor:
         for vnode in vnodes:
             if vnode.y is not None:
                 support[vnode.y] += 1
-
+        self._log.warning(self._log.warning(pprint.pformat(support)))
         # Sort by support to create labels from most frequent to the least frequent
         self.labels_to_class_sequences = [
             key for key, val in sorted(support.items(), key=itemgetter(1), reverse=True)

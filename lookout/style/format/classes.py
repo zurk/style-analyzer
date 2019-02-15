@@ -3,7 +3,9 @@
 # https://github.com/src-d/style-analyzer/issues/286
 
 CLS_SPACE = "<space>"
+CLS_SPACE_TRAILING = "<space t>"
 CLS_TAB = "<tab>"
+CLS_TAB_TRAILING = "<tab t>"
 CLS_NEWLINE = "<newline>"
 CLS_SPACE_INC = "<+space>"
 CLS_SPACE_DEC = "<-space>"
@@ -13,7 +15,8 @@ CLS_SINGLE_QUOTE = "'"
 CLS_DOUBLE_QUOTE = '"'
 CLS_NOOP = "<noop>"
 CLASSES = (CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
-           CLS_TAB_INC, CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP)
+           CLS_TAB_INC, CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_SPACE_TRAILING,
+           CLS_TAB_TRAILING, CLS_NOOP)
 CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
                        CLASS_INDEX[CLS_NOOP]])
@@ -25,10 +28,12 @@ CLS_TO_STR = {
     CLS_NOOP: "",
     CLS_SINGLE_QUOTE: "'",
     CLS_SPACE: " ",
+    CLS_SPACE_TRAILING: " ",
     CLS_SPACE_DEC: "",
     CLS_SPACE_INC: " ",
     CLS_TAB: "\t",
     CLS_TAB_DEC: "",
+    CLS_TAB_TRAILING: "",
     CLS_TAB_INC: "\t",
 }
 INDEX_CLS_TO_STR = tuple(CLS_TO_STR[c] for c in CLASSES)
@@ -39,9 +44,11 @@ _CLASS_REPRESENTATIONS_MAPPING = {
     CLS_NOOP: "∅",
     CLS_SINGLE_QUOTE: "'",
     CLS_SPACE: "␣",
+    CLS_SPACE_TRAILING: "t␣",
     CLS_SPACE_DEC: "␣⁻",
     CLS_SPACE_INC: "␣⁺",
     CLS_TAB: "⇥",
+    CLS_TAB_TRAILING: "t⇥",
     CLS_TAB_DEC: "⇥⁻",
     CLS_TAB_INC: "⇥⁺",
 }
