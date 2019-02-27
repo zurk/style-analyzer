@@ -55,14 +55,14 @@ def generate_quality_report(language: str, report: Mapping[str, Any], ptr: Refer
     return res
 
 
-def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
+def generate_model_report(model: FormatModel, config: Dict[str, Any],
                           languages: Optional[Union[str, Iterable[str]]] = None) -> str:
     """
     Generate report about model - description for each rule, min/max support, min/max confidence.
 
     :param model: trained format model.
-    :param analyze_config: config that is used at the analysis stage. It is needed to calculate \
-                           the real number of enabled rules.
+    :param config: config that is used in StyleAnalyzer. It is needed to calculate the real \
+                   number of enabled rules.
     :param languages: Languages for which report should be created. You can specify one \
                       language as string, several as list of strings or None for all languages in \
                       the model.
@@ -73,9 +73,8 @@ def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
     for language in languages:
         if language not in model:
             raise NotFittedError(language)
-
     template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "model_report.md.jinja2"))
-    return template.render(model=model, languages=languages, analyze_config=analyze_config,
+    return template.render(model=model, languages=languages, analyze_config=config["analyze"],
                            FeatureExtractor=FeatureExtractor, describe_rule=describe_rule)
 
 
@@ -210,8 +209,8 @@ class ReportAnalyzer(FormatAnalyzerSpy):
     * generate_model_report (optional - by default it will return empty string)
     """
 
-    defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
-                                       {"aggregate": False})
+    default_config = merge_dicts(FormatAnalyzer.default_config,
+                                 {"aggregate": False})
 
     def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """
@@ -308,11 +307,10 @@ class QualityReportAnalyzer(ReportAnalyzer):
     version = 1
     description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
-    defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
-                                       {"max_files": 10})
-    defaults_for_train = merge_dicts(ReportAnalyzer.defaults_for_train,
-                                     {"global": {"test_dataset_ratio": 0.2,
-                                                 }})
+    default_config = merge_dicts(ReportAnalyzer.default_config,
+                                 {"max_files": 10,
+                                  "train": {"language_defaults": {"test_dataset_ratio": 0.2}},
+                                  })
 
     def generate_model_report(self) -> str:
         """
@@ -320,7 +318,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
 
         :return: report.
         """
-        return generate_model_report(model=self.model, analyze_config=self.defaults_for_analyze)
+        return generate_model_report(model=self.model, config=self.config)
 
     def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """
