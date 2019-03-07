@@ -13,6 +13,9 @@ from scipy.sparse import csr_matrix, hstack, vstack
 from sklearn.exceptions import NotFittedError
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
+from lookout.style.format.annotations.annotated_data import AnnotatedData
+from lookout.style.format.annotations.annotations import AccumulatedIntentationAnnotation, \
+    PathAnnotation, TargetAnnotation, TokenAnnotation, UASTAnnotation
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
@@ -307,22 +310,23 @@ class FeatureExtractor:
         parsed_files = []
         index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
-            contents = file.content.decode("utf-8", "replace")
+            path = file.path
             uast = file.uast
+            file = AnnotatedData.from_file(file)
             try:
-                file_vnodes, file_parents = self._parse_file(contents, uast, file.path)
+                # Should be self._parse_file(content, file)
+                file_vnodes, file_parents = self._parse_file(file)
             except AssertionError as e:
-                self._log.warning("could not parse file %s with error '%s', skipping",
-                                  file.path, e)
+                self._log.warning("could not parse file %s with error '%s', skipping", path, e)
                 if self.debug_parsing:
                     import traceback
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            file_vnodes_iterator = self._classify_vnodes(file_vnodes, file.path)
+            file_vnodes_iterator = self._classify_vnodes(file_vnodes, path)
             file_vnodes_iterator = self._merge_classes_to_composite_labels(
-                file_vnodes_iterator, file.path, index_labels=index_labels)
-            file_vnodes = self._add_noops(list(file_vnodes_iterator), file.path,
+                file_vnodes_iterator, path, index_labels=index_labels)
+            file_vnodes = self._add_noops(list(file_vnodes_iterator), path,
                                           index_labels=index_labels)
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
@@ -689,7 +693,7 @@ class FeatureExtractor:
         quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
         return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
 
-    def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
+    def _parse_file(self, file: AnnotatedData) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
         Parse a file into a sequence of `VirtuaNode`-s and a mapping from VirtualNode to parent.
@@ -699,11 +703,10 @@ class FeatureExtractor:
         source text bit-to-bit after `"".join(n.value for n in nodes)`. `parents` map from
         `id(node)` to its parent `bblfsh.Node`.
 
-        :param contents: source file text
-        :param root: UAST root node
-        :param path: path to the file, used for debugging
+        :param file: Source file text annotated with path and uast.
         :return: list of `VirtualNode`-s and the parents.
         """
+        contents = file.content
         # build the line mapping
         lines = contents.splitlines(keepends=True)
         # Check if there is a newline in the end of file. Yes, you can just check
@@ -724,7 +727,7 @@ class FeatureExtractor:
         # walk the tree: collect nodes with assigned tokens and build the parents map
         node_tokens = []
         parents = {}
-        queue = [root]
+        queue = [file.iget(UASTAnnotation, 0).uast]
         while queue:
             node = queue.pop()
             if node.internal_type in self.node_fixtures:
@@ -742,10 +745,8 @@ class FeatureExtractor:
         node_tokens.append(sentinel)
 
         # scan `node_tokens` and fill the gaps with imaginary nodes
-        result = []
         pos = 0
         parser = self.tokens.PARSER
-        searchsorted = numpy.searchsorted
         for node in node_tokens:
             if node.start_position.offset < pos:
                 continue
@@ -753,21 +754,22 @@ class FeatureExtractor:
                 sumlen = 0
                 diff = contents[pos:node.start_position.offset]
                 for match in parser.finditer(diff):
-                    positions = []
+                    offsets = []
                     for suboff in (match.start(), match.end()):
-                        offset = pos + suboff
-                        line = searchsorted(line_offsets, offset, side="right")
-                        col = offset - line_offsets[line - 1] + 1
-                        positions.append(Position(offset, line, col))
+                        offsets.append(pos + suboff)
                     token = match.group()
                     sumlen += len(token)
-                    result.append(VirtualNode(token, *positions, path=path))
+                    file.add(TokenAnnotation(*offsets))
                 assert sumlen == node.start_position.offset - pos, \
                     "missed some imaginary tokens: \"%s\"" % diff
             if node is sentinel:
                 break
-            result.extend(VirtualNode.from_node(node, contents, path, self.token_unwrappers))
+            uast_node_annot = list(VirtualNode.from_node(node, contents, self.token_unwrappers))
+            file.update(uast_node_annot)
             pos = node.end_position.offset
+
+        # backward
+        result = to_vnodes(file)
         return result, parents
 
     def _compute_labels_mappings(self, vnodes: Iterable[VirtualNode]) -> None:
@@ -806,3 +808,42 @@ class FeatureExtractor:
             if parent is None:
                 parent = uast
             vnode_parents[id(vn)] = parent
+
+
+def to_vnodes(file: AnnotatedData) -> List["VirtualNode"]:
+    """
+    Convert AnnotatedData class to Sequence of vnodes.
+
+    For backward capability.
+    """
+    def _to_position(raw_lines_data, _lines_start_offset, offset):
+        line_num = numpy.argmax(_lines_start_offset > offset) - 1
+        col = offset - _lines_start_offset[line_num]
+        line = raw_lines_data[line_num]
+        if len(line) == col:
+            if line.splitlines()[0] != line:
+                # ends with newline
+                line_num += 1
+                col = 0
+        return Position(offset, line_num + 1, col + 1)
+
+    vnodes = []
+    vnode_annotations = [TokenAnnotation, PathAnnotation, AccumulatedIntentationAnnotation,
+                         TargetAnnotation]
+    path = file.iget(PathAnnotation, 0).path
+    raw_lines_data = file.content.splitlines(keepends=True)
+    line_lens = [0] + [len(d) for d in raw_lines_data]
+    line_lens[-1] += 1
+    _line_start_offsets = numpy.array(line_lens).cumsum()
+    for value, annotations in file.iter_items(vnode_annotations):
+        vnode = VirtualNode(
+            value,
+            _to_position(raw_lines_data, _line_start_offsets, annotations.start),
+            _to_position(raw_lines_data, _line_start_offsets, annotations.stop),
+            is_accumulated_indentation=AccumulatedIntentationAnnotation in annotations,
+            path=path,
+            node=annotations[TokenAnnotation].node,
+            y=annotations[TargetAnnotation].target if TargetAnnotation is annotations else None,
+        )
+        vnodes.append(vnode)
+    return vnodes
