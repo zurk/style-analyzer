@@ -1,4 +1,5 @@
 """Feature extraction module."""
+import sys
 from collections import defaultdict, OrderedDict
 import importlib
 from itertools import chain, islice, zip_longest
@@ -22,6 +23,66 @@ from lookout.style.format.features import (  # noqa: F401
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
 from lookout.style.format.virtual_node import AnyNode, Position, VirtualNode
 
+import bblfsh
+from bblfsh import BblfshClient, role_id, role_name
+import importlib
+
+
+def node2raw(node, internal_type=True):
+    token = "|%s|" % node.token[:20].replace("\n", "\\n")
+    roles = ", ".join(sorted(role_name(k) for k in node.roles if role_name(k) != "NOOP"))
+    roles = ""
+    internal_role = node.internal_type
+    positions = str(((node.start_position.offset, node.start_position.line, node.start_position.col),
+                     (node.end_position.offset, node.end_position.line, node.end_position.col)))
+    return [positions, token, internal_role, roles] if internal_type else [positions, token, roles]
+
+
+def uast_roles(uast) -> iter:
+    stack = [(0, uast)]
+    while stack:
+        level, node = stack.pop()
+        yield level, node
+        stack.extend((level + 1, c) for c in node.children[::-1])
+
+
+def rreplace(s, old, new, times):
+    li = s.rsplit(old, times)
+    return new.join(li)
+
+
+def print_table(table, file=None):
+    col_size = [max(len(cell) for cell in table_col) for table_col in zip(*table)]
+    file = file if file else sys.stdout
+    for raw in table:
+        print("  ".join(cell.ljust(size) for cell, size in zip(raw, col_size)).strip(), file=file)
+
+
+def print_uast_structure(uast, internal_type=True, file=None):
+    if internal_type:
+        table = [["#", "Token", "Internal Role", "Roles Tree"], ["", "", "", ""]]
+    else:
+        table = [["#", "Token", "Roles Tree"], ["", "", ""]]
+    old_level = 0
+    for level, node in uast_roles(uast):
+        raw = node2raw(node, internal_type)
+        if level != 0:
+            raw[-1] = "┃ " * (level - 1) + "┣ " + raw[-1]
+        if level < old_level:
+            table[-1][-1] = rreplace(table[-1][-1].replace("┣", "┗"), "┃", "┗",
+                                     old_level - level - 1)
+            pass
+        table.append(raw)
+        old_level = level
+    table[-1][-1] = table[-1][-1].replace("┣", "┗").replace("┃", "┗")
+    print_table(table, file)
+
+
+def print_nodes(nodes):
+    table = [["#", "Token", "Roles"]]
+    for node in nodes:
+        table.append(node2raw(node, False))
+    print_table(table)
 
 IndexToFeature = List[Tuple[FeatureGroup, int, FeatureId, int]]
 
@@ -689,7 +750,7 @@ class FeatureExtractor:
         quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
         return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
 
-    def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
+    def _parse_file(self, contents: str, root: bblfsh.Node, path: str, check=True) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
         Parse a file into a sequence of `VirtuaNode`-s and a mapping from VirtualNode to parent.
@@ -768,7 +829,43 @@ class FeatureExtractor:
                 break
             result.extend(VirtualNode.from_node(node, contents, path, self.token_unwrappers))
             pos = node.end_position.offset
+        if check:
+            # Check
+            result_old, _ = self._check_with_old_driver(contents, path)
+            if len(result_old) != len(result):
+                self._log.warning("mismatch!!! Length mismatch:\nold: %d\nnew: %d" % (len(result_old), len(result)))
+            for i, (vnode_old, vnode) in enumerate(zip(result_old, result)):
+                vnode_old = vnode_old.copy()
+                vnode = vnode.copy()
+                uast_node = vnode.node
+                uast_node_old = vnode_old.node
+                vnode.node = None
+                vnode_old.node = None
+                vnode.end = Position(vnode.end.offset, 1, 1)
+                # Wrong col in old format.
+                vnode_old.end = Position(vnode_old.end.offset, 1, 1)
+
+                if vnode_old != vnode:
+                    self._log.warning("mismatch!!! Nodes #%d mismatch:\nnew:%s\nold:%s" % (i, repr(vnode), repr(vnode_old)))
+                if (uast_node is None) and (uast_node_old is None):
+                    continue
+                elif (uast_node is None) ^ (uast_node_old is None):
+                    self._log.warning("mismatch!!! UAST nodes #%d None mismatch:\nnew:%s\nold:%s" % (
+                        i, repr(vnode), repr(vnode_old)))
+                elif uast_node.start_position.offset != uast_node_old.start_position.offset or \
+                        uast_node.end_position.offset != uast_node_old.end_position.offset:
+                    self._log.warning("mismatch!!! UAST nodes #%d position mismatch:\nnew:%s\nold:%s" % (
+                        i, repr(vnode), repr(vnode_old)))
+
         return result, parents
+
+    def _check_with_old_driver(self, contents, path):
+        bc = bblfsh.BblfshClient("localhost:9433")
+        response = bc.parse(filename=path, contents=contents.encode(), language="javascript")
+        uast = response.uast
+        print_uast_structure(uast, file=open("uast_v1", "w"))
+        result2 = self._parse_file(contents, uast, path, check=False)
+        return result2
 
     def _compute_labels_mappings(self, vnodes: Iterable[VirtualNode]) -> None:
         """

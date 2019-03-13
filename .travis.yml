@@ -22,6 +22,7 @@ stages:
     if: tag =~ .*
 _install: &_install
   - travis_retry make bblfsh-start
+  - travis_retry make bblfsh-start-old
   - pip install --upgrade pip cython codecov
   - LOOKOUT_STYLE_ANALYZER_SETUP_INCLUDE_TESTS=1 pip install .[test,plot]
   - cd $(pip show lookout-style|grep Location|cut -d' ' -f2)/lookout/style
@@ -56,6 +57,7 @@ matrix:
         - set -e
         - make docker-check
         - travis_retry make bblfsh-start
+        - travis_retry make bblfsh-start-old
         - make docker-build VERSION=test
         - make docker-test
         - set +e

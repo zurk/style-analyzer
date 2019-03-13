@@ -34,8 +34,14 @@ docker-test:
 		--entrypoint python3 -w /style-analyzer \
 			srcd/style-analyzer:test -m unittest discover
 
+bblfsh-start-old:
+	! docker ps | grep style_analyzer_bblfshd_old # bblfsh server has been run already.
+	docker run -d --rm --name style_analyzer_bblfshd_old --privileged -p 9433\:9432 \
+		bblfsh/bblfshd\:v2.11.0 --log-level DEBUG
+	docker exec style_analyzer_bblfshd_old bblfshctl driver install \
+		javascript docker://bblfsh/javascript-driver\:v1.2.0
+
 bblfsh-start:
-	! docker ps | grep bblfshd # bblfsh server has been run already.
 	docker run -d --rm --name style_analyzer_bblfshd --privileged -p 9432\:9432 \
 		bblfsh/bblfshd\:v2.11.0 --log-level DEBUG
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
@@ -64,7 +70,7 @@ report-noisy: $(NOISY_REPORT_DIR)
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format quality-report -o $(QUALITY_REPORT_DIR) \
-		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
 report-compare:
 	python3 -m lookout.style.format compare-quality \
 		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-train_report.md \
