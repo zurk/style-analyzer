@@ -14,7 +14,8 @@ from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_changes, \
-    with_changed_uasts_and_contents, with_uasts_and_contents
+    with_changed_uasts_and_contents, with_uasts_and_contents, with_unicode_data_service, \
+    UnicodeDataService
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 from lookout.core.metrics import submit_event
 import numpy
@@ -84,9 +85,10 @@ class FormatAnalyzer(Analyzer):
         with open(self.analyze_config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
+    @with_unicode_data_service
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, changes: Iterator[Change], **data) -> List[Comment]:
+                data_service: UnicodeDataService, changes: Iterator[Change], **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
@@ -160,6 +162,7 @@ class FormatAnalyzer(Analyzer):
         return False
 
     @classmethod
+    @with_unicode_data_service
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               files: Iterator[File], **data) -> FormatModel:
@@ -187,6 +190,8 @@ class FormatAnalyzer(Analyzer):
             _log.info("effective train config for %s:\n%s", language,
                       pformat(lang_config, width=120, compact=True))
             random_state = lang_config["random_state"]
+            _log.info("Before filtering\n%s\nfiles",
+                      "\n".join([files[file].path for file in files]))
             files = filter_files(
                 files, lang_config["line_length_limit"], lang_config["overall_size_limit"],
                 random_state, _log)
@@ -201,6 +206,8 @@ class FormatAnalyzer(Analyzer):
                 continue
             else:
                 _log.info("training on %d %s files", len(files), language)
+                _log.info("training on\n%s\nfiles", "\n".join([file.path for file in files]))
+            raise RuntimeError()
             train_files, test_files = FormatAnalyzer.split_train_test(
                 files, lang_config["test_dataset_ratio"], random_state=random_state)
             # ensure that the features are reproducible
@@ -334,7 +341,7 @@ class FormatAnalyzer(Analyzer):
             hash_rule, feature_extractor=file_fix.feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=file_fix.feature_extractor)
-        code_lines = file_fix.head_file.content.decode("utf-8", "replace").splitlines()
+        code_lines = file_fix.head_file.content.splitlines()
         line_fix = file_fix.line_fixes[fix_index]
         config = self.analyze_config[file_fix.language]
         return self.comment_template.render(

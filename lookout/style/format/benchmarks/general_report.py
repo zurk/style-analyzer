@@ -12,7 +12,8 @@ from bblfsh import BblfshClient
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
-from lookout.core.data_requests import DataService, request_files
+from lookout.core.data_requests import DataService, request_files, with_unicode_data_service, \
+    UnicodeDataService
 from lookout.core.lib import parse_files
 import numpy
 from sklearn.exceptions import NotFittedError
@@ -235,8 +236,9 @@ class ReportAnalyzer(FormatAnalyzerSpy):
         """
         raise NotImplementedError()
 
+    @with_unicode_data_service
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, **data) -> List[Comment]:
+                data_service: UnicodeDataService, **data) -> List[Comment]:
         """
         Analyze ptr_from revision and generate reports for all files in it.
 

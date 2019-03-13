@@ -92,7 +92,7 @@ class UASTStabilityChecker:
         # TODO(vmarkovtsev): Apply ML to not parse all the parents.
         self._parsing_cache = {}
         unsafe_preds = []
-        file_content = file.content.decode("utf-8", "replace")
+        file_content = file.content
         vnodes_i = 0
         changes = numpy.where((y_pred != -1) & (y != y_pred))[0]
         start_offset_to_vnodes = {}

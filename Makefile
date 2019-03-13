@@ -39,7 +39,7 @@ bblfsh-start:
 	docker run -d --rm --name style_analyzer_bblfshd --privileged -p 9432\:9432 \
 		bblfsh/bblfshd\:v2.11.0 --log-level DEBUG
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
-		javascript docker://bblfsh/javascript-driver\:v1.2.0
+		javascript docker://bblfsh/javascript-driver\:v2.6.0
 
 REPORTS_DIR ?= $(current_dir)/lookout/style/format/benchmarks/reports
 REPORT_VERSION ?= untagged
