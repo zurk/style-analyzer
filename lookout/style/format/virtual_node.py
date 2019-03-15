@@ -81,8 +81,8 @@ class VirtualNode:
 
     def __eq__(self, other: "VirtualNode") -> bool:
         return (self.value == other.value
-                and self.start == other.start
-                and self.end == other.end
+                and self.start.offset == other.start.offset
+                and self.end.offset == other.end.offset
                 and self.node == other.node
                 and self.y == other.y
                 and self.path == other.path)
@@ -151,6 +151,74 @@ class VirtualNode:
         yield uast_annotation
         if end_pos < node.end_position.offset:
             yield RawTokenAnnotation(end_pos, node.end_position.offset)
+
+    @staticmethod
+    def from_node_old(node: bblfsh.Node, file: str, path: str,
+                      token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]],
+                      ) -> Iterable["VirtualNode"]:
+        """
+        Initialize the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
+
+        :param node: UAST node.
+        :param file: File contents.
+        :param path: File path.
+        :param token_unwrappers: Mapping from bblfsh internal types to functions to unwrap tokens.
+        :return: New VirtualNode-s.
+        """
+        outer_token = file[node.start_position.offset:node.end_position.offset]
+        if not node.token:
+            if outer_token == "''" or outer_token == '""':
+                start = Position.from_bblfsh_position(node.start_position)
+                middle = Position(offset=start.offset + 1, line=start.line, col=start.col + 1)
+                end = Position.from_bblfsh_position(node.end_position)
+                yield VirtualNode(outer_token[0], start, middle, path=path)
+                yield VirtualNode("", middle, middle, node=node, path=path)
+                yield VirtualNode(outer_token[1], middle, end, path=path)
+                return
+            yield VirtualNode(outer_token,
+                              Position.from_bblfsh_position(node.start_position),
+                              Position.from_bblfsh_position(node.end_position),
+                              node=node, path=path)
+            return
+        node_token = node.token
+        if node.internal_type in token_unwrappers:
+            node_token, outer_token = token_unwrappers[node.internal_type](outer_token)
+        start_offset = outer_token.find(node_token)
+        assert start_offset >= 0, (
+            "Couldn't find the token in the specified position:\nNode role: %s\nParsed form: “%s”"
+            "\nRaw form: “%s”\nStart position: %d, %d, %d\nEnd position: %d, %d, %d" % (
+                node.internal_type, node_token, outer_token, node.start_position.offset,
+                node.start_position.line, node.start_position.col, node.end_position.offset,
+                node.end_position.line, node.end_position.col))
+        start_pos = node.start_position.offset + start_offset
+        if start_offset:
+            yield VirtualNode(outer_token[:start_offset],
+                              Position(offset=node.start_position.offset,
+                                       line=node.start_position.line,
+                                       col=node.start_position.col),
+                              Position(offset=start_pos,
+                                       line=node.start_position.line,
+                                       col=node.start_position.col + start_offset),
+                              path=path)
+        end_offset = start_offset + len(node_token)
+        end_pos = start_pos + len(node_token)
+        yield VirtualNode(node_token,
+                          Position(offset=start_pos,
+                                   line=node.start_position.line,
+                                   col=node.start_position.col + start_offset),
+                          Position(offset=end_pos,
+                                   line=node.end_position.line,
+                                   col=node.start_position.col + end_offset),
+                          node=node, path=path)
+        if end_pos < node.end_position.offset:
+            yield VirtualNode(outer_token[end_offset:],
+                              Position(offset=end_pos,
+                                       line=node.end_position.line,
+                                       col=node.start_position.col + end_offset),
+                              Position(offset=node.end_position.offset,
+                                       line=node.end_position.line,
+                                       col=node.end_position.col),
+                              path=path)
 
 
 AnyNode = Union[VirtualNode, bblfsh.Node]

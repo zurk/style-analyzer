@@ -693,6 +693,87 @@ class FeatureExtractor:
         quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
         return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
 
+    def _parse_file_old(self, contents: str, root: bblfsh.Node, path: str) -> \
+            Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
+        """
+        Parse a file into a sequence of `VirtuaNode`-s and a mapping from VirtualNode to parent.
+
+        Given the source text and the corresponding UAST this function compiles the list of
+        `VirtualNode`-s and the parents mapping. That list of nodes equals to the original
+        source text bit-to-bit after `"".join(n.value for n in nodes)`. `parents` map from
+        `id(node)` to its parent `bblfsh.Node`.
+
+        :param contents: source file text
+        :param root: UAST root node
+        :param path: path to the file, used for debugging
+        :return: list of `VirtualNode`-s and the parents.
+        """
+        # build the line mapping
+        lines = contents.splitlines(keepends=True)
+        # Check if there is a newline in the end of file. Yes, you can just check
+        # lines[-1][-1] == "\n" but if someone decide to use weird '\u2028' unicode character for
+        # new line this condition gives wrong result.
+        eof_new_line = lines[-1].splitlines()[0] != lines[-1]
+        if eof_new_line:
+            # We add last line as empty one because it actually exists, but .splitlines() does not
+            # return it.
+            lines.append("")
+        line_offsets = numpy.zeros(len(lines) + 1, dtype=numpy.int32)
+        pos = 0
+        for i, line in enumerate(lines):
+            line_offsets[i] = pos
+            pos += len(line)
+        line_offsets[-1] = pos + 1
+
+        # walk the tree: collect nodes with assigned tokens and build the parents map
+        node_tokens = []
+        parents = {}
+        queue = [root]
+        while queue:
+            node = queue.pop()
+            if node.internal_type in self.node_fixtures:
+                node = self.node_fixtures[node.internal_type](node)
+            for child in node.children:
+                parents[id(child)] = node
+            queue.extend(node.children)
+            if (node.token or node.start_position and node.end_position
+                    and node.start_position != node.end_position and not node.children):
+                node_tokens.append(node)
+        node_tokens.sort(key=lambda n: n.start_position.offset)
+        sentinel = bblfsh.Node()
+        sentinel.start_position.offset = len(contents)
+        sentinel.start_position.line = len(lines)
+        node_tokens.append(sentinel)
+
+        # scan `node_tokens` and fill the gaps with imaginary nodes
+        result = []
+        pos = 0
+        parser = self.tokens.PARSER
+        searchsorted = numpy.searchsorted
+        for node in node_tokens:
+            if node.start_position.offset < pos:
+                continue
+            if node.start_position.offset > pos:
+                sumlen = 0
+                diff = contents[pos:node.start_position.offset]
+                for match in parser.finditer(diff):
+                    positions = []
+                    for suboff in (match.start(), match.end()):
+                        offset = pos + suboff
+                        line = searchsorted(line_offsets, offset, side="right")
+                        col = offset - line_offsets[line - 1] + 1
+                        positions.append(Position(offset, line, col))
+                    token = match.group()
+                    sumlen += len(token)
+                    result.append(VirtualNode(token, *positions, path=path))
+                assert sumlen == node.start_position.offset - pos, \
+                    "missed some imaginary tokens: \"%s\"" % diff
+            if node is sentinel:
+                break
+            result.extend(VirtualNode.from_node_old(node, contents, path, self.token_unwrappers))
+            pos = node.end_position.offset
+        return result, parents
+
     def _parse_file(self, file: AnnotatedData) -> Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
         Annotate a file with a RawTokenAnnotation and build a mapping from UAST Node to parent.
@@ -769,7 +850,17 @@ class FeatureExtractor:
             pos = node.end_position.offset
 
         # backward
-        return raw_file_to_vnodes_and_parents(file)
+        result, parents = raw_file_to_vnodes_and_parents(file)
+
+        result_old, _ = self._parse_file_old(contents, file.get(UASTAnnotation).uast,
+                                             file.get(PathAnnotation).path)
+        for i, (vnode, vnode_old) in enumerate(zip(result, result_old)):
+            if vnode != vnode_old:
+                print("new: ", repr(vnode))
+                print("old: ", repr(vnode_old))
+                print("%d!!!" % i)
+
+        return result, parents
 
     def _compute_labels_mappings(self, vnodes: Iterable[VirtualNode]) -> None:
         """
