@@ -84,7 +84,7 @@ class FormatAnalyzer(Analyzer):
         with open(self.analyze_config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
-    @with_changed_uasts_and_contents
+    @with_changed_uasts_and_contents(unicode=True)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, changes: Iterator[Change], **data) -> List[Comment]:
         """
@@ -160,7 +160,7 @@ class FormatAnalyzer(Analyzer):
         return False
 
     @classmethod
-    @with_uasts_and_contents
+    @with_uasts_and_contents(unicode=True)
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               files: Iterator[File], **data) -> FormatModel:
         """
@@ -334,7 +334,7 @@ class FormatAnalyzer(Analyzer):
             hash_rule, feature_extractor=file_fix.feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=file_fix.feature_extractor)
-        code_lines = file_fix.head_file.content.decode("utf-8", "replace").splitlines()
+        code_lines = file_fix.head_file.content.splitlines()
         line_fix = file_fix.line_fixes[fix_index]
         config = self.analyze_config[file_fix.language]
         return self.comment_template.render(

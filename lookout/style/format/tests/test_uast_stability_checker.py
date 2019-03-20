@@ -54,7 +54,8 @@ class PostprocessingTests(unittest.TestCase):
     def edit_and_test(self, code: str, modifs: Mapping[int, Sequence[str]], *,
                       quote_indices: Optional[Tuple[int, ...]] = None,
                       bad_indices: Optional[FrozenSet[int]] = None) -> None:
-        uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
+        uast, errors = parse_uast(self.stub, code, filename="", language=self.language,
+                                  unicode=True)
         if errors:
             self.fail("Could not parse the testing code.")
         file = File(content=code.encode(), uast=uast, path="test_file")
@@ -97,7 +98,8 @@ class PostprocessingTests(unittest.TestCase):
         ]
         files = []
         for i, (code, _) in enumerate(data):
-            uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
+            uast, errors = parse_uast(self.stub, code, filename="", language=self.language,
+                                      unicode=True)
             if errors:
                 self.fail("Could not parse the testing code.")
             files.append(File(content=code.encode(), uast=uast, path="test_file_%d" % i))

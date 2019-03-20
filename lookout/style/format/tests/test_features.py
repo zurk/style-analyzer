@@ -13,7 +13,7 @@ import numpy
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
-from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_extractor import FeatureExtractor, print_uast_structure
 from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.virtual_node import Position, VirtualNode
 
@@ -38,10 +38,18 @@ class FeaturesTests(unittest.TestCase):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
         with lzma.open(str(test_js_code_filepath), mode="rt") as f:
             code = f.read()
-        uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
-        self.assertEqual("".join(n.value for n in nodes), code)
+        code_bytes = code.encode()
+        r_new = bblfsh.BblfshClient("0.0.0.0:9432").parse(
+            filename="", language="javascript", contents=code_bytes)
+
+        r_old = bblfsh.BblfshClient("0.0.0.0:9433").parse(
+            filename="", language="javascript", contents=code_bytes)
+        print_uast_structure(r_old.uast, file=open("uast_v2", "w"))
+        from lookout.core.bytes_to_unicode_converter import BytesToUnicodeConverter
+        converter = BytesToUnicodeConverter(code_bytes)
+        fixed_uast = converter.convert_uast(r_new.uast)
+        print_uast_structure(fixed_uast, file=open("uast_v2_fixed", "w"))
+        nodes, parents = self.extractor._parse_file(code, fixed_uast, test_js_code_filepath, check=True)
 
     def test_extract_features_exact_match(self):
         file = File(content=bytes(self.contents, "utf-8"),

@@ -21,8 +21,7 @@ class RulesIntegrationTests(unittest.TestCase):
             contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        file = File(content=bytes(contents, "utf-8"),
-                    uast=uast)
+        file = File(content=contents, uast=uast)
         cls.files = [file]
         config = FormatAnalyzer._load_config(get_config())["train"]
         cls.extractor = FeatureExtractor(
