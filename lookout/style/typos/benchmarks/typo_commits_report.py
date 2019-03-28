@@ -16,6 +16,7 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, request_files
 import pandas
+from tabulate import tabulate
 
 from lookout.style.cloner import Cloner
 from lookout.style.common import load_jinja2_template
@@ -110,7 +111,9 @@ class TypoCommitsReporter(Reporter):
         :return: Dictionary with report names as keys and report string as values.
         """
         metrics = self.get_metrics_billet()
-
+        metrics.review_time = self._review_time
+        if not fixes:
+            raise ValueError("Should be at least one fix.")
         correct_fix = dataset_row["correct id"]
         wrong_identifier = dataset_row["wrong id"]
         for fix in fixes:
@@ -124,11 +127,10 @@ class TypoCommitsReporter(Reporter):
                     metrics.fix_accuracy += 1
             else:
                 metrics.detection_false_positive += 1
+
         metrics.support = fixes[0].identifiers_number
         # Because there is one typo per commit
         metrics.detection_false_negatives = 1 - metrics.detection_true_positive
-        metrics.review_time = self._review_time
-
         return json.dumps(metrics.to_dict())
 
     def _trigger_review_event(self, dataset_row: Dict[str, Any]) -> Sequence[TypoFix]:
@@ -162,7 +164,7 @@ class TypoCommitsReporter(Reporter):
         template = load_jinja2_template(self.report_template_path)
         report = template.render(scores=scores, commit=self._get_commit(),
                                  package_version=self._get_package_version(),
-                                 fails=self._fails)
+                                 fails=self._fails, tabulate=tabulate)
 
         yield report
 

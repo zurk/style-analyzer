@@ -2,19 +2,16 @@
 
 ## Metrics
 
-| Metric         |  Value   |
-|---------------:|:---------|
 {% set scores_to_show = ["detection_precision", "detection_recall", "fix_accuracy",
-                         "top3_detection_precision", "top3_detection_recall", "top3_fix_accuracy",
-                         "support", "review_time"] %}
-{% for score_name in scores %}
-| {{ "%24s" % score_name}} | {{ "%.3f" % scores[score_name]}} |
-{% endfor %}
+                         "top3_fix_accuracy", "support", "review_time"] %}
+{{ tabulate(scores[scores_to_show].to_frame(),
+            tablefmt="pipe", headers=["metric", "value"], floatfmt=".3f",
+            stralign="right", numalign="left") }}
 
 {%  if fails|length != 0 %}
 Report generation failed for
-{% for row_index in failures %}
-{{ row_index }}. {{ failures[row_index]["repo"] }}
+{% for row_index in fails %}
+{{ row_index }}. {{ fails[row_index]["repo"] }}
 {% endfor %}
 {% endif %}
 
