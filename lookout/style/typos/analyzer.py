@@ -26,6 +26,7 @@ TypoFix = NamedTuple("TypoFix", (
     ("line_number", int),                                     # line number for the comment
     ("identifier", str),                                      # identifier where typo is found
     ("candidates", Iterable[Candidate]),                      # suggested identifiers
+    ("identifiers_number", int),                              # Number of all analyzed identifiers
 ))
 
 
@@ -166,7 +167,9 @@ class IdTyposAnalyzer(Analyzer):
                             path=file.path,
                             identifier=identifier,
                             line_number=new_identifiers[index].start_position.line,
-                            candidates=identifier_candidates)
+                            candidates=identifier_candidates,
+                            identifiers_number=len(new_identifiers),
+                        )
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """
