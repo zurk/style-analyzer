@@ -13,7 +13,7 @@ cache: pip
 before_cache:
   - chown -R travis:travis $HOME/.cache/pip
 stages:
-  - style
+#  - style
   - test
   - name: deploy
     # require any tag name
@@ -36,31 +36,31 @@ _coverage: &_coverage
   - find react -name '*.js' | xargs python3 -m lookout.style.format.langs -o /tmp/test
 matrix:
   include:
-    - stage: style
-      python: 3.7
-      install:
-        - pip install -r doc/requirements.txt -r requirements-lint.txt
-        - cd lookout/style/format/visualizer && npm install && cd -
-      script:
-        - set -e
-        - make check
-        - rm -rf lookout/core/server
-        - cd doc && make
-        - cd ../lookout/style/format/visualizer && npm run build
-        - set +e
-    - stage: test
-      python: 3.5
-      script: *_coverage
-      install: *_install
-    - python: 3.6
-      # We test python 3.6 inside docker.
-      script:
-        - set -e
-        - make docker-check
-        - travis_retry make bblfsh-start
-        - make docker-build VERSION=test
-        - make docker-test
-        - set +e
+#    - stage: style
+#      python: 3.7
+#      install:
+#        - pip install -r doc/requirements.txt -r requirements-lint.txt
+#        - cd lookout/style/format/visualizer && npm install && cd -
+#      script:
+#        - set -e
+#        - make check
+#        - rm -rf lookout/core/server
+#        - cd doc && make
+#        - cd ../lookout/style/format/visualizer && npm run build
+#        - set +e
+#    - stage: test
+#      python: 3.5
+#      script: *_coverage
+#      install: *_install
+#    - python: 3.6
+#      # We test python 3.6 inside docker.
+#      script:
+#        - set -e
+#        - make docker-check
+#        - travis_retry make bblfsh-start
+#        - make docker-build VERSION=test
+#        - make docker-test
+#        - set +e
     - python: 3.7
       script: *_coverage
       install: *_install
